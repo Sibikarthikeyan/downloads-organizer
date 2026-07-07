@@ -1,0 +1,4 @@
+watchdog>=3.0
+PyYAML>=6.0
+# Optional: better content-type detection (a built-in fallback is used otherwise)
+# python-magic>=0.4

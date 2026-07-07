@@ -1,0 +1,25 @@
+# User-level systemd service for Downloads Organizer.
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp packaging/downloads-organizer.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now downloads-organizer
+# Logs: journalctl --user -u downloads-organizer -f
+
+[Unit]
+Description=Intelligent Downloads folder organizer
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/downloads-organizer run
+# Isolate from any environment-injected Python paths (e.g. ROS setups).
+Environment=PYTHONPATH=
+Restart=on-failure
+RestartSec=5
+# Keep the footprint small.
+MemoryHigh=100M
+Nice=10
+
+[Install]
+WantedBy=default.target

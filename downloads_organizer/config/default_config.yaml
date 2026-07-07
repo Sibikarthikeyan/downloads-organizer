@@ -1,0 +1,93 @@
+# Downloads Organizer configuration
+# Location: ~/.config/downloads-organizer/config.yaml
+# Every key is optional; omitted keys fall back to built-in defaults.
+
+# Folder to watch for new files.
+watch_folder: ~/Downloads
+
+# Where category folders are created. Defaults to the watch folder itself.
+# destination_root: ~/Downloads
+
+# Category folder -> file extensions. Overriding this replaces the whole map.
+categories:
+  Documents: [pdf, doc, docx, ppt, pptx, xls, xlsx, txt, odt, rtf]
+  Images: [jpg, jpeg, png, gif, bmp, webp, tiff, svg]
+  Videos: [mp4, mkv, avi, mov, webm]
+  Audio: [mp3, wav, flac, aac, ogg]
+  Archives: [zip, rar, 7z, tar, gz, bz2, xz]
+  Programs: [deb, appimage, run, sh]
+  Code: [py, cpp, c, h, json, yaml, yml, xml, js, ts, html, css]
+  Datasets: [csv, parquet, npy, pkl]
+  # Nested categories create subfolders automatically:
+  Robotics/PointClouds: [pcd, pcl, ply]
+  Robotics/Rosbags: [bag, db3, mcap]
+  Robotics/Models: [urdf, xacro, sdf, stl, dae]
+  Robotics/Maps: [pgm]
+  Robotics/Data: [db, sqlite, sqlite3]
+
+# Folder for files that match no category.
+unknown_category: Unknown
+
+# Filename rules run BEFORE extension mapping, first match wins.
+# Patterns are case-insensitive globs matched against the file name.
+filename_rules:
+  - {pattern: "invoice*", destination: Bills}
+  - {pattern: "resume*", destination: Career}
+  - {pattern: "screenshot*", destination: Screenshots}
+  - {pattern: "lecture*", destination: Lectures}
+  - {pattern: "ros2*", destination: Robotics/Docs}
+  - {pattern: "nav2*", destination: Robotics/Docs}
+  - {pattern: "slam*", destination: Robotics/Docs}
+  - {pattern: "moveit*", destination: Robotics/Docs}
+
+# Route by the website a file was downloaded from (browsers record the
+# origin URL in the file's extended attributes). First match wins; these
+# run before filename rules.
+url_rules: []
+#  - {pattern: "*arxiv.org*", destination: Papers}
+#  - {pattern: "*github.com*", destination: Code}
+
+# Classify extension-less or unknown files by their magic bytes instead of
+# dumping them in Unknown. Uses python-magic if installed, otherwise a
+# built-in signature table.
+content_detection: true
+
+# What to do when the destination file already exists:
+# rename | skip | replace | keep_newest | keep_oldest
+duplicate_policy: rename
+
+# Files matching these globs are never touched (".*" covers hidden files).
+ignore_patterns: ["*.tmp", "*.partial", ".*"]
+
+# Organize files already sitting in the watch folder when the app starts.
+organize_existing_on_start: true
+
+stability:
+  # File size must be unchanged for this long before it is moved.
+  stable_seconds: 3.0
+  poll_interval: 1.0
+  max_wait_seconds: 3600.0
+  # In-flight download extensions; the organizer waits for these to disappear.
+  temp_extensions: [.crdownload, .part, .download, .tmp, .partial]
+
+notifications:
+  enabled: true
+  timeout_ms: 5000
+
+logging:
+  # Uncomment to also log to a rotating file:
+  # file: ~/.local/share/downloads-organizer/organizer.log
+  level: INFO
+  max_bytes: 1000000
+  backup_count: 5
+
+# Every move is journaled here; powers `downloads-organizer undo` and `stats`.
+journal:
+  enabled: true
+  path: ~/.local/share/downloads-organizer/journal.jsonl
+
+# Dotted paths of plugin classes, e.g. ["my_pkg.plugins:VirusScanPlugin"]
+plugins: []
+
+# Log what would happen without moving anything.
+dry_run: false

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "downloads-organizer"
+version = "0.1.0"
+description = "Intelligent Downloads folder organizer for Ubuntu"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "watchdog>=3.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+full = ["python-magic>=0.4"]
+
+[project.scripts]
+downloads-organizer = "downloads_organizer.main:main"
+
+[tool.setuptools.packages.find]
+include = ["downloads_organizer*"]
+
+[tool.setuptools.package-data]
+"downloads_organizer.config" = ["default_config.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

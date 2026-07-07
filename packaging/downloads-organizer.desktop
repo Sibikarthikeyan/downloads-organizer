@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Downloads Organizer
+Comment=Automatically organize your Downloads folder
+Exec=downloads-organizer run
+Icon=folder-download
+Terminal=false
+Categories=Utility;FileTools;
+X-GNOME-Autostart-enabled=true
