@@ -65,6 +65,8 @@ class DownloadsWatcher:
         self._worker = threading.Thread(target=self._run_worker, name="organizer-worker", daemon=True)
 
     def start(self) -> None:
+        if self._stop.is_set():  # stopped before start (e.g. SIGTERM during startup scan)
+            return
         watch = self._config.watch_folder
         watch.mkdir(parents=True, exist_ok=True)
         handler = _EventHandler(self._events, watch)
@@ -76,9 +78,11 @@ class DownloadsWatcher:
     def stop(self) -> None:
         self._stop.set()
         self._events.put(None)  # wake the worker if it is blocked on the queue
-        self._observer.stop()
-        self._observer.join(timeout=5)
-        self._worker.join(timeout=5)
+        if self._observer.is_alive():
+            self._observer.stop()
+            self._observer.join(timeout=5)
+        if self._worker.is_alive():
+            self._worker.join(timeout=5)
 
     def wait(self) -> None:
         """Block until stopped (for the CLI foreground mode)."""
@@ -90,21 +94,29 @@ class DownloadsWatcher:
     def _run_worker(self) -> None:
         poll = self._config.stability.poll_interval
         while not self._stop.is_set():
-            # Block indefinitely when idle; poll while files are settling.
-            timeout = poll if len(self._tracker) else None
             try:
-                path = self._events.get(timeout=timeout)
+                self._worker_tick(poll)
+            except Exception:
+                # The worker must survive anything; a dead worker would
+                # silently stop all organizing while the observer runs on.
+                log.exception("Worker iteration failed; continuing")
+
+    def _worker_tick(self, poll: float) -> None:
+        # Block indefinitely when idle; poll while files are settling.
+        timeout = poll if len(self._tracker) else None
+        try:
+            path = self._events.get(timeout=timeout)
+        except queue.Empty:
+            path = None
+        if path is not None and self._pipeline.should_process(path):
+            self._tracker.add(path)
+        # Drain any burst of events without waiting.
+        while True:
+            try:
+                extra = self._events.get_nowait()
             except queue.Empty:
-                path = None
-            if path is not None and self._pipeline.should_process(path):
-                self._tracker.add(path)
-            # Drain any burst of events without waiting.
-            while True:
-                try:
-                    extra = self._events.get_nowait()
-                except queue.Empty:
-                    break
-                if extra is not None and self._pipeline.should_process(extra):
-                    self._tracker.add(extra)
-            for ready in self._tracker.collect_ready():
-                self._pipeline.process(ready)
+                break
+            if extra is not None and self._pipeline.should_process(extra):
+                self._tracker.add(extra)
+        for ready in self._tracker.collect_ready():
+            self._pipeline.process(ready)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,16 +27,24 @@ def undo_last(journal: Journal, count: int = 1) -> list[UndoResult]:
     exists at its destination or the original path is occupied again.
     """
     entries = journal.read_all()
-    undone_destinations = {e.source for e in entries if e.action == "undo"}
     results: list[UndoResult] = []
+    # Walking newest-first, each undo entry cancels out the nearest earlier
+    # move to the same destination. A plain set would mark a destination as
+    # undone forever, breaking undo once a file is re-organized to it.
+    undo_credits: Counter[str] = Counter()
 
     for entry in reversed(entries):
         if len(results) >= count:
             break
-        if entry.action != "move" or entry.destination in undone_destinations:
+        if entry.action == "undo":
+            undo_credits[entry.source] += 1
+            continue
+        if entry.action != "move":
+            continue
+        if undo_credits[entry.destination] > 0:
+            undo_credits[entry.destination] -= 1
             continue
         results.append(_restore(journal, entry))
-        undone_destinations.add(entry.destination)
     return results
 
 

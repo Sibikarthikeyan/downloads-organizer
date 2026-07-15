@@ -39,6 +39,30 @@ def test_simulated_browser_download_is_organized(config: AppConfig, downloads: P
         watcher.stop()
 
 
+def test_firefox_style_download_leaves_no_zero_byte_dummy(config: AppConfig, downloads: Path) -> None:
+    """Firefox creates a 0-byte placeholder plus name.part, then renames
+    the .part over the placeholder. Only one real file may be organized."""
+    watcher = DownloadsWatcher(config, OrganizerPipeline(config))
+    watcher.start()
+    try:
+        placeholder = downloads / "book.xlsx"
+        part = downloads / "book.xlsx.part"
+        placeholder.write_bytes(b"")
+        part.write_bytes(b"chunk")
+        time.sleep(0.5)  # long enough for the placeholder to look "stable"
+        part.write_bytes(b"chunk" * 100)
+        time.sleep(0.3)
+        part.rename(placeholder)  # download complete
+
+        assert wait_for(lambda: (downloads / "Documents" / "book.xlsx").is_file())
+        organized = list((downloads / "Documents").iterdir())
+        assert [p.name for p in organized] == ["book.xlsx"]
+        assert organized[0].stat().st_size == 500
+        assert not placeholder.exists() and not part.exists()
+    finally:
+        watcher.stop()
+
+
 def test_multiple_files_and_unknown_types(config: AppConfig, downloads: Path) -> None:
     watcher = DownloadsWatcher(config, OrganizerPipeline(config))
     watcher.start()

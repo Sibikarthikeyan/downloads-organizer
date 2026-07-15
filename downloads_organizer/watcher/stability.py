@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from downloads_organizer.config.schema import StabilityConfig
-from downloads_organizer.utils.fsutils import is_temp_download
+from downloads_organizer.utils.fsutils import has_inflight_sibling, is_temp_download
 
 log = logging.getLogger("downloads_organizer.watcher")
 
@@ -43,12 +43,24 @@ class StabilityTracker:
         if is_temp_download(path, self._config.temp_extensions):
             log.debug("Skipping in-flight download %s", path.name)
             return
+        if has_inflight_sibling(path, self._config.temp_extensions):
+            # Firefox-style placeholder: the real data lives in a temp
+            # sibling; renaming it over the placeholder produces a fresh
+            # event that re-adds the file once the download is done.
+            log.debug("Skipping placeholder for in-flight download %s", path.name)
+            return
         now = self._clock()
         try:
             stat = path.stat()
         except OSError:
             return  # vanished already; a later event will re-add it
-        self._pending[path] = _Pending(stat.st_size, stat.st_mtime, now, now)
+        state = self._pending.get(path)
+        if state is None:
+            self._pending[path] = _Pending(stat.st_size, stat.st_mtime, now, now)
+        elif stat.st_size != state.size or stat.st_mtime != state.mtime:
+            # Keep first_seen so max_wait_seconds still applies; only the
+            # stability clock restarts, and only when the file changed.
+            state.size, state.mtime, state.unchanged_since = stat.st_size, stat.st_mtime, now
 
     def discard(self, path: Path) -> None:
         self._pending.pop(path, None)
@@ -68,6 +80,13 @@ class StabilityTracker:
                 continue
             if stat.st_size != state.size or stat.st_mtime != state.mtime:
                 state.size, state.mtime, state.unchanged_since = stat.st_size, stat.st_mtime, now
+            if has_inflight_sibling(path, self._config.temp_extensions):
+                # A temp sibling appeared after add(); the file is a
+                # placeholder for a download still in progress.
+                if now - state.first_seen > self._config.max_wait_seconds:
+                    log.warning("Giving up on placeholder %s", path)
+                    del self._pending[path]
+                continue
             if now - state.unchanged_since >= self._config.stable_seconds:
                 ready.append(path)
                 del self._pending[path]

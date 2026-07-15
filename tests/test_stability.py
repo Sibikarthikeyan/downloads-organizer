@@ -70,3 +70,60 @@ def test_never_stable_file_expires(downloads: Path) -> None:
         path.write_bytes(b"1" * (step + 1))
         tracker.collect_ready()
     assert len(tracker) == 0  # gave up after max_wait_seconds
+
+
+def test_placeholder_with_temp_sibling_is_rejected(downloads: Path) -> None:
+    # Firefox: 0-byte placeholder next to the .part file holding the data.
+    tracker, clock = make_tracker()
+    placeholder = make_file(downloads, "book.xlsx", b"")
+    make_file(downloads, "book.xlsx.part", b"partial data")
+    tracker.add(placeholder)
+    assert len(tracker) == 0
+    clock.now = 10.0
+    assert tracker.collect_ready() == []
+
+
+def test_placeholder_ready_after_sibling_renamed_over_it(downloads: Path) -> None:
+    tracker, clock = make_tracker()
+    placeholder = make_file(downloads, "book.xlsx", b"")
+    part = make_file(downloads, "book.xlsx.part", b"data")
+    tracker.add(placeholder)  # rejected while the sibling exists
+    part.rename(placeholder)  # download complete
+    tracker.add(placeholder)  # re-added by the rename event
+    clock.now = 3.5
+    assert tracker.collect_ready() == [placeholder]
+
+
+def test_sibling_appearing_after_add_blocks_readiness(downloads: Path) -> None:
+    tracker, clock = make_tracker()
+    placeholder = make_file(downloads, "book.xlsx", b"")
+    tracker.add(placeholder)
+    part = make_file(downloads, "book.xlsx.part", b"partial")  # download starts
+    clock.now = 10.0
+    assert tracker.collect_ready() == []
+    assert len(tracker) == 1  # still pending, not dropped
+    part.unlink()
+    assert tracker.collect_ready() == [placeholder]
+
+
+def test_repeated_add_does_not_reset_stability_clock(downloads: Path) -> None:
+    tracker, clock = make_tracker()
+    path = make_file(downloads, "a.pdf")
+    tracker.add(path)
+    clock.now = 2.0
+    tracker.add(path)  # duplicate event for an unchanged file
+    clock.now = 3.5
+    assert tracker.collect_ready() == [path]
+
+
+def test_repeated_add_preserves_first_seen_for_expiry(downloads: Path) -> None:
+    clock = FakeClock()
+    tracker = StabilityTracker(StabilityConfig(stable_seconds=3.0, max_wait_seconds=10.0), clock=clock)
+    path = make_file(downloads, "a.iso", b"1")
+    tracker.add(path)
+    for step in range(1, 7):  # last step is past max_wait_seconds
+        clock.now = step * 2.0
+        path.write_bytes(b"1" * (step + 1))
+        tracker.add(path)  # each write also produces an event
+        tracker.collect_ready()
+    assert len(tracker) == 0  # expiry fired despite the repeated add() calls

@@ -65,7 +65,8 @@ def _sniff_mime(path: Path) -> str | None:
         except Exception as exc:
             log.debug("libmagic failed on %s: %s", path.name, exc)
     try:
-        header = path.open("rb").read(512)
+        with path.open("rb") as fh:
+            header = fh.read(512)
     except OSError:
         return None
     for offset, signature, mime in _SIGNATURES:

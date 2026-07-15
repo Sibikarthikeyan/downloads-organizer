@@ -22,7 +22,7 @@ from downloads_organizer.notifications.notifier import Notifier, NullNotifier, b
 from downloads_organizer.plugins.registry import PluginRegistry
 from downloads_organizer.rules.filename import FilenameRuleClassifier
 from downloads_organizer.rules.url import UrlRuleClassifier
-from downloads_organizer.utils.fsutils import matches_any
+from downloads_organizer.utils.fsutils import has_inflight_sibling, is_temp_download, matches_any
 
 log = logging.getLogger("downloads_organizer.pipeline")
 
@@ -69,10 +69,13 @@ class OrganizerPipeline:
         self._managed_folders = config.category_folders()
 
     def should_process(self, path: Path) -> bool:
-        """Filter out ignored, hidden, and already-organized files."""
+        """Filter out ignored, hidden, in-flight, and already-organized files."""
         if not path.is_file():
             return False
         if matches_any(path.name, self._config.ignore_patterns):
+            return False
+        temp_extensions = self._config.stability.temp_extensions
+        if is_temp_download(path, temp_extensions) or has_inflight_sibling(path, temp_extensions):
             return False
         root = self._config.resolved_destination_root()
         try:

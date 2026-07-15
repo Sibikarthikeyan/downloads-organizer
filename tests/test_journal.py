@@ -49,6 +49,22 @@ def test_undo_restores_last_move(config: AppConfig, downloads: Path) -> None:
     assert (downloads / "photo.png").is_file()
 
 
+def test_undo_works_again_after_destination_is_reused(config: AppConfig, downloads: Path) -> None:
+    """move -> undo -> move to the same destination -> undo must still work."""
+    make_file(downloads, "photo.png")
+    OrganizerPipeline(config).scan_existing()
+    journal = Journal(config.journal.path)
+    assert undo_last(journal, 1)[0].restored
+    assert (downloads / "photo.png").is_file()
+
+    OrganizerPipeline(config).scan_existing()  # organized again, same destination
+    assert (downloads / "Images" / "photo.png").is_file()
+
+    results = undo_last(journal, 1)
+    assert len(results) == 1 and results[0].restored
+    assert (downloads / "photo.png").is_file()
+
+
 def test_undo_skips_missing_destination(config: AppConfig, downloads: Path) -> None:
     make_file(downloads, "photo.png")
     OrganizerPipeline(config).scan_existing()

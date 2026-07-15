@@ -28,6 +28,16 @@ def is_temp_download(path: Path, temp_extensions: Iterable[str]) -> bool:
     return any(name.endswith(ext.lower()) for ext in temp_extensions)
 
 
+def has_inflight_sibling(path: Path, temp_extensions: Iterable[str]) -> bool:
+    """True if a temp-download artifact for ``path`` exists next to it.
+
+    Firefox downloads ``X.xlsx`` as a 0-byte placeholder plus ``X.xlsx.part``
+    holding the data; the placeholder must not be moved while the sibling
+    is still there.
+    """
+    return any(path.with_name(path.name + ext).exists() for ext in temp_extensions)
+
+
 def matches_any(name: str, patterns: Iterable[str]) -> bool:
     """Case-insensitive glob match of ``name`` against ``patterns``."""
     return any(fnmatch.fnmatch(name.lower(), pattern.lower()) for pattern in patterns)

@@ -117,6 +117,22 @@ def test_crashing_plugin_does_not_stop_processing(config: AppConfig, downloads: 
     assert (downloads / "Images" / "photo.png").is_file()
 
 
+def test_scan_skips_inflight_downloads(config: AppConfig, downloads: Path) -> None:
+    """Startup scan must not move browser temp files or their placeholders."""
+    make_file(downloads, "movie.mp4.crdownload")
+    make_file(downloads, "doc.pdf.part")
+    placeholder = make_file(downloads, "book.xlsx", b"")  # Firefox placeholder
+    make_file(downloads, "book.xlsx.part", b"partial data")
+
+    pipeline = OrganizerPipeline(config)
+    assert not pipeline.should_process(downloads / "movie.mp4.crdownload")
+    assert not pipeline.should_process(placeholder)
+    assert pipeline.scan_existing() == 0
+    assert placeholder.is_file()
+    assert (downloads / "movie.mp4.crdownload").is_file()
+    assert (downloads / "doc.pdf.part").is_file()
+
+
 def test_dry_run_scan_touches_nothing(config: AppConfig, downloads: Path) -> None:
     config.dry_run = True
     make_file(downloads, "photo.png")

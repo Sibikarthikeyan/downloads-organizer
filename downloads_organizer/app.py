@@ -41,18 +41,21 @@ class Application:
 
     def run_forever(self) -> None:
         """Start watching; blocks until SIGINT/SIGTERM."""
+
+        def _shutdown(signum: int, _frame: object) -> None:
+            log.info("Received %s, shutting down", signal.Signals(signum).name)
+            self.watcher.stop()
+
+        # Registered before the startup scan so a long scan can be
+        # interrupted cleanly.
+        signal.signal(signal.SIGINT, _shutdown)
+        signal.signal(signal.SIGTERM, _shutdown)
+
         if self.config.organize_existing_on_start:
             # Recover files that arrived while the service was not running.
             moved = self.pipeline.scan_existing()
             if moved:
                 log.info("Startup scan organized %d file(s)", moved)
         self.watcher.start()
-
-        def _shutdown(signum: int, _frame: object) -> None:
-            log.info("Received %s, shutting down", signal.Signals(signum).name)
-            self.watcher.stop()
-
-        signal.signal(signal.SIGINT, _shutdown)
-        signal.signal(signal.SIGTERM, _shutdown)
         self.watcher.wait()
         log.info("Stopped")
